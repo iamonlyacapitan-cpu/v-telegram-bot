@@ -1,10 +1,9 @@
 import os
 import logging
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
-from database import db
-from handlers.user_handlers import user_handlers
-from handlers.admin_handlers import admin_handlers
-from utils.helpers import is_admin
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # تنظیمات logging
 logging.basicConfig(
@@ -13,14 +12,110 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def start(update, context):
+class Database:
+    def __init__(self):
+        self.conn = None
+    
+    def connect(self):
+        """اتصال به دیتابیس"""
+        try:
+            self.conn = psycopg2.connect(
+                os.getenv('DATABASE_URL'),
+                cursor_factory=RealDictCursor
+            )
+            self.create_tables()
+            logger.info("✅ Connected to database successfully")
+        except Exception as e:
+            logger.error(f"❌ Database connection failed: {e}")
+    
+    def create_tables(self):
+        """ایجاد جداول مورد نیاز"""
+        with self.conn.cursor() as cur:
+            # جدول کاربران
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id BIGINT PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    balance INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            
+            # جدول پلن‌ها
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS plans (
+                    plan_id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    price INTEGER NOT NULL,
+                    duration_days INTEGER NOT NULL,
+                    description TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            
+            # ایجاد کاربر ادمین اصلی
+            admin_id = int(os.getenv('ADMIN_ID'))
+            cur.execute('''
+                INSERT INTO users (user_id, is_admin, balance)
+                VALUES (%s, TRUE, 0)
+                ON CONFLICT (user_id) DO UPDATE SET is_admin = TRUE
+            ''', (admin_id,))
+            
+            # ایجاد پلن‌های پیش‌فرض
+            cur.execute('''
+                INSERT INTO plans (name, price, duration_days, description) 
+                VALUES 
+                ('پلن یک ماهه', 29000, 30, 'دسترسی یک ماهه به VPN پرسرعت'),
+                ('پلن سه ماهه', 79000, 90, 'دسترسی سه ماهه با قیمت ویژه'),
+                ('پلن یک ساله', 199000, 365, 'دسترسی یک ساله با بهترین قیمت')
+                ON CONFLICT DO NOTHING
+            ''')
+            
+            self.conn.commit()
+    
+    def get_user(self, user_id: int):
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT * FROM users WHERE user_id = %s', (user_id,))
+            return cur.fetchone()
+    
+    def create_user(self, user_id: int, username: str, first_name: str, last_name: str = ""):
+        with self.conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO users (user_id, username, first_name, last_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id) DO NOTHING
+            ''', (user_id, username, first_name, last_name))
+            self.conn.commit()
+    
+    def get_plans(self):
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT * FROM plans WHERE is_active = TRUE ORDER BY price')
+            return cur.fetchall()
+
+# ایجاد نمونه دیتابیس
+db = Database()
+
+def get_main_keyboard():
+    """کیبورد اصلی"""
+    keyboard = [
+        [InlineKeyboardButton("🛒 خرید VPN", callback_data="buy_vpn")],
+        [InlineKeyboardButton("📋 سفارشات من", callback_data="my_orders")],
+        [InlineKeyboardButton("💰 کیف پول", callback_data="wallet")],
+        [InlineKeyboardButton("ℹ️ راهنما", callback_data="help")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+async def start(update: Update, context):
     """دستور شروع ربات"""
     user = update.effective_user
     user_id = user.id
     
     # ایجاد کاربر در دیتابیس
-    await db.create_user(user_id, user.username, user.first_name, user.last_name or "")
-    await db.add_log(user_id, "start", "کاربر ربات را شروع کرد")
+    db.create_user(user_id, user.username, user.first_name, user.last_name or "")
     
     welcome_text = """
 🤖 به ربات فروش VPN خوش آمدید!
@@ -33,58 +128,21 @@ async def start(update, context):
 برای شروع از دکمه‌های زیر استفاده کنید:
 """
     
-    from utils.helpers import get_main_keyboard
-    keyboard = get_main_keyboard(is_admin(user_id))
+    keyboard = get_main_keyboard()
     
     if update.callback_query:
         await update.callback_query.edit_message_text(welcome_text, reply_markup=keyboard)
     else:
         await update.message.reply_text(welcome_text, reply_markup=keyboard)
 
-def main():
-    """تابع اصلی اجرای ربات"""
-    # ایجاد اپلیکیشن
-    bot_token = os.getenv('BOT_TOKEN')
-    if not bot_token:
-        logger.error("❌ BOT_TOKEN not found in environment variables")
-        return
+async def show_plans(update: Update, context):
+    """نمایش پلن‌ها"""
+    query = update.callback_query
+    await query.answer()
     
-    updater = Updater(bot_token, use_context=True)
-    dispatcher = updater.dispatcher
-
-    # اضافه کردن هندلر شروع
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
+    plans = db.get_plans()
     
-    # اضافه کردن هندلرهای کاربران
-    for handler in user_handlers:
-        dispatcher.add_handler(handler)
-    
-    # اضافه کردن هندلرهای ادمین
-    for handler in admin_handlers:
-        dispatcher.add_handler(handler)
-    
-    # هندلر برای پیام‌های متنی معمولی
-    def handle_regular_message(update, context):
-        """پردازش پیام‌های متنی معمولی"""
-        user_id = update.message.from_user.id
-        
-        # اگر کاربر در حال آپلود رسید است، از هندلر مخصوص استفاده کن
-        if update.message.photo or update.message.document:
-            return
-        
-        # در غیر این صورت کاربر را به منوی اصلی هدایت کن
-        start(update, context)
-    
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_regular_message))
-    
-    # شروع ربات
-    logger.info("🤖 Bot is starting...")
-    updater.start_polling()
-    updater.idle()
-
-if __name__ == "__main__":
-    # اتصال به دیتابیس و سپس اجرای ربات
-    import asyncio
-    asyncio.run(db.connect())
-    main()
+    plans_text = "🛒 پلن‌های موجود:\n\n"
+    for plan in plans:
+        plans_text += f"📦 {plan['name']}\n"
+        plans_text += f"💰 قیمت: {plan['price']:,} توم
