@@ -1,7 +1,3 @@
-"""
-Utility modules for Telegram Bot
-"""
-
 from .helpers import (
     is_admin,
     get_admin_keyboard,
