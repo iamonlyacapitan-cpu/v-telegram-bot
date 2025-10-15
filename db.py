@@ -8,7 +8,6 @@ async def create_pool():
 
 async def init_db(pool):
     async with pool.acquire() as conn:
-        # جدول کاربران
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS users(
             id SERIAL PRIMARY KEY,
@@ -16,14 +15,12 @@ async def init_db(pool):
             wallet BIGINT DEFAULT 0,
             created_at TIMESTAMP
         )""")
-        # جدول ادمین‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS admins(
             id SERIAL PRIMARY KEY,
             telegram_id BIGINT UNIQUE,
             added_at TIMESTAMP
         )""")
-        # جدول پلن‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS plans(
             id SERIAL PRIMARY KEY,
@@ -31,7 +28,6 @@ async def init_db(pool):
             price BIGINT,
             description TEXT
         )""")
-        # جدول سفارش‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS orders(
             id SERIAL PRIMARY KEY,
@@ -44,13 +40,11 @@ async def init_db(pool):
             reason TEXT,
             created_at TIMESTAMP
         )""")
-        # جدول تنظیمات
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS settings(
             key TEXT PRIMARY KEY,
             value TEXT
         )""")
-        # جدول لاگ
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS logs(
             id SERIAL PRIMARY KEY,
@@ -58,12 +52,10 @@ async def init_db(pool):
             action TEXT,
             created_at TIMESTAMP
         )""")
-        # اطلاعات بانکی پیش‌فرض
         await conn.execute("""
         INSERT INTO settings(key,value) VALUES('bank_info','6037-9912-3456-7890 به نام پینگ‌من')
         ON CONFLICT (key) DO NOTHING
         """)
-        # اضافه کردن ادمین اولیه
         await conn.execute("""
         INSERT INTO admins(telegram_id, added_at) VALUES($1, $2)
         ON CONFLICT (telegram_id) DO NOTHING
@@ -98,3 +90,12 @@ async def get_wallet(pool, tg_id: int):
 async def update_wallet(pool, tg_id:int, amount:int):
     async with pool.acquire() as conn:
         await conn.execute("UPDATE users SET wallet=wallet+$1 WHERE telegram_id=$2", amount, tg_id)
+
+# ---------- مدیریت کاربران ----------
+async def get_all_users(pool):
+    async with pool.acquire() as conn:
+        return await conn.fetch("SELECT telegram_id, wallet, created_at FROM users ORDER BY created_at DESC")
+
+async def delete_user(pool, tg_id:int):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM users WHERE telegram_id=$1", tg_id)
