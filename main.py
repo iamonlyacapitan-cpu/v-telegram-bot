@@ -1,12 +1,9 @@
-import os
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 from db import create_pool, init_db
-from bot_handlers import start
+from bot_handlers import start, wallet
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise Exception("BOT_TOKEN محیطی تنظیم نشده!")
+from config import BOT_TOKEN
 
 async def main():
     pool = await create_pool()
@@ -15,9 +12,14 @@ async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.bot_data['db_pool'] = pool
 
-    # دستور اصلی
+    # Commands
     app.add_handler(CommandHandler("start", start))
-    # ⚡ سایر handlers مثل show_plans, my_orders, wallet, admin_panel اضافه می‌شوند
+    app.add_handler(CommandHandler("wallet", wallet))
+
+    # CallbackQueryHandler ها برای منوها و پنل ادمین
+    # ⚡ بعداً اضافه می‌شوند
+    # Example:
+    # app.add_handler(CallbackQueryHandler(show_plans, pattern="show_plans"))
 
     print("Bot is running...")
     await app.run_polling()
