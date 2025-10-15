@@ -1,13 +1,18 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import CallbackQueryHandler, MessageHandler, Filters
 from database import db
-from utils.helpers import get_admin_keyboard, get_main_keyboard, format_user_info
+from utils.helpers import get_admin_keyboard, get_main_keyboard
 import logging
 import os
 
 logger = logging.getLogger(__name__)
 
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def is_admin(user_id: int) -> bool:
+    """بررسی اینکه کاربر ادمین هست یا نه"""
+    user = await db.get_user(user_id)
+    return user and user['is_admin']
+
+async def admin_panel(update: Update, context):
     """نمایش پنل مدیریت"""
     query = update.callback_query
     await query.answer()
@@ -26,7 +31,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = get_admin_keyboard()
     await query.edit_message_text(admin_text, reply_markup=keyboard)
 
-async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_users(update: Update, context):
     """مدیریت کاربران"""
     query = update.callback_query
     await query.answer()
@@ -58,7 +63,7 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(users_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_orders(update: Update, context):
     """مدیریت سفارشات"""
     query = update.callback_query
     await query.answer()
@@ -81,7 +86,6 @@ async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             orders_text += f"📦 پلن: {order['plan_name']}\n"
             orders_text += f"💰 مبلغ: {order['price']:,} تومان\n"
             orders_text += f"📅 تاریخ: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
-            
             orders_text += "─" * 30 + "\n"
     
     keyboard = [
@@ -101,7 +105,7 @@ async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(orders_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def approve_order(update: Update, context):
     """تایید سفارش توسط ادمین"""
     query = update.callback_query
     await query.answer()
@@ -120,7 +124,7 @@ async def approve_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "لطفا کانفیگ VPN را وارد کنید:"
     )
 
-async def reject_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def reject_order(update: Update, context):
     """رد سفارش توسط ادمین"""
     query = update.callback_query
     await query.answer()
@@ -139,7 +143,7 @@ async def reject_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "لطفا دلیل رد را وارد کنید:"
     )
 
-async def handle_vpn_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_vpn_config(update: Update, context):
     """پردازش کانفیگ VPN از ادمین"""
     user_id = update.message.from_user.id
     if not await is_admin(user_id):
@@ -196,7 +200,7 @@ async def handle_vpn_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # پاک کردن حالت
     del context.user_data['awaiting_vpn_config']
 
-async def handle_reject_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_reject_reason(update: Update, context):
     """پردازش دلیل رد سفارش از ادمین"""
     user_id = update.message.from_user.id
     if not await is_admin(user_id):
@@ -247,7 +251,7 @@ async def handle_reject_reason(update: Update, context: ContextTypes.DEFAULT_TYP
     # پاک کردن حالت
     del context.user_data['rejecting_order']
 
-async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_broadcast(update: Update, context):
     """ارسال پیام گروهی"""
     query = update.callback_query
     await query.answer()
@@ -264,19 +268,17 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 • 📝 ارسال متن
 • 🖼️ ارسال عکس با کپشن
-• 👤 ارسال به کاربر خاص
 """
     
     keyboard = [
         [InlineKeyboardButton("📝 ارسال متن", callback_data="broadcast_text")],
         [InlineKeyboardButton("🖼️ ارسال عکس", callback_data="broadcast_photo")],
-        [InlineKeyboardButton("👤 ارسال به کاربر خاص", callback_data="broadcast_user")],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")]
     ]
     
     await query.edit_message_text(broadcast_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def start_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_broadcast_text(update: Update, context):
     """شروع ارسال پیام متنی گروهی"""
     query = update.callback_query
     await query.answer()
@@ -292,7 +294,7 @@ async def start_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TYP
         "⚠️ توجه: این پیام به همه کاربران ارسال خواهد شد."
     )
 
-async def start_broadcast_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_broadcast_photo(update: Update, context):
     """شروع ارسال عکس گروهی"""
     query = update.callback_query
     await query.answer()
@@ -308,7 +310,7 @@ async def start_broadcast_photo(update: Update, context: ContextTypes.DEFAULT_TY
         "⚠️ توجه: این پیام به همه کاربران ارسال خواهد شد."
     )
 
-async def handle_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_broadcast_text(update: Update, context):
     """پردازش پیام متنی گروهی"""
     user_id = update.message.from_user.id
     if not await is_admin(user_id):
@@ -348,7 +350,7 @@ async def handle_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TY
     # پاک کردن حالت
     del context.user_data['broadcast_type']
 
-async def handle_broadcast_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_broadcast_photo(update: Update, context):
     """پردازش عکس گروهی"""
     user_id = update.message.from_user.id
     if not await is_admin(user_id):
@@ -394,7 +396,7 @@ async def handle_broadcast_photo(update: Update, context: ContextTypes.DEFAULT_T
     # پاک کردن حالت
     del context.user_data['broadcast_type']
 
-async def admin_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_logs(update: Update, context):
     """مشاهده لاگ‌ها"""
     query = update.callback_query
     await query.answer()
@@ -424,11 +426,6 @@ async def admin_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(logs_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def is_admin(user_id: int) -> bool:
-    """بررسی اینکه کاربر ادمین هست یا نه"""
-    user = await db.get_user(user_id)
-    return user and user['is_admin']
-
 # ثبت هندلرهای ادمین
 admin_handlers = [
     CallbackQueryHandler(admin_panel, pattern="^admin_panel$"),
@@ -440,8 +437,8 @@ admin_handlers = [
     CallbackQueryHandler(reject_order, pattern="^reject_order_"),
     CallbackQueryHandler(start_broadcast_text, pattern="^broadcast_text$"),
     CallbackQueryHandler(start_broadcast_photo, pattern="^broadcast_photo$"),
-    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_vpn_config),
-    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reject_reason),
-    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast_text),
-    MessageHandler(filters.PHOTO, handle_broadcast_photo),
+    MessageHandler(Filters.text & ~Filters.command, handle_vpn_config),
+    MessageHandler(Filters.text & ~Filters.command, handle_reject_reason),
+    MessageHandler(Filters.text & ~Filters.command, handle_broadcast_text),
+    MessageHandler(Filters.photo, handle_broadcast_photo),
 ]
