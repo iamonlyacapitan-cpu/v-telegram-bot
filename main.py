@@ -27,3 +27,11 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+from bot_handlers import admin_plans, delete_plan_handler, admin_orders, approve_order, reject_order
+
+# Callback Handlers
+app.add_handler(CallbackQueryHandler(admin_plans, pattern="admin_plans"))
+app.add_handler(CallbackQueryHandler(delete_plan_handler, pattern="delete_plan:"))
+app.add_handler(CallbackQueryHandler(admin_orders, pattern="admin_orders"))
+app.add_handler(CallbackQueryHandler(approve_order, pattern="approve_order:"))
+app.add_handler(CallbackQueryHandler(reject_order, pattern="reject_order:"))
