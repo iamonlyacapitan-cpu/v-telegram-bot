@@ -2,11 +2,13 @@ import asyncpg
 import datetime
 from config import DATABASE_URL, ADMIN_ID
 
+# ---------- اتصال به دیتابیس ----------
 async def create_pool():
     return await asyncpg.create_pool(DATABASE_URL)
 
 async def init_db(pool):
     async with pool.acquire() as conn:
+        # جدول کاربران
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS users(
             id SERIAL PRIMARY KEY,
@@ -14,12 +16,14 @@ async def init_db(pool):
             wallet BIGINT DEFAULT 0,
             created_at TIMESTAMP
         )""")
+        # جدول ادمین‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS admins(
             id SERIAL PRIMARY KEY,
             telegram_id BIGINT UNIQUE,
             added_at TIMESTAMP
         )""")
+        # جدول پلن‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS plans(
             id SERIAL PRIMARY KEY,
@@ -27,6 +31,7 @@ async def init_db(pool):
             price BIGINT,
             description TEXT
         )""")
+        # جدول سفارش‌ها
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS orders(
             id SERIAL PRIMARY KEY,
@@ -39,11 +44,13 @@ async def init_db(pool):
             reason TEXT,
             created_at TIMESTAMP
         )""")
+        # جدول تنظیمات
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS settings(
             key TEXT PRIMARY KEY,
             value TEXT
         )""")
+        # جدول لاگ
         await conn.execute("""
         CREATE TABLE IF NOT EXISTS logs(
             id SERIAL PRIMARY KEY,
