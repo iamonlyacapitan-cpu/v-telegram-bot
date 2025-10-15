@@ -99,3 +99,41 @@ async def get_all_users(pool):
 async def delete_user(pool, tg_id:int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM users WHERE telegram_id=$1", tg_id)
+# توابع پلن‌ها
+async def get_all_plans(pool):
+    async with pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM plans ORDER BY id")
+
+async def add_plan(pool, name, price, description):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO plans(name,price,description) VALUES($1,$2,$3)",
+            name, price, description
+        )
+
+async def edit_plan(pool, plan_id, name, price, description):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE plans SET name=$1, price=$2, description=$3 WHERE id=$4",
+            name, price, description, plan_id
+        )
+
+async def delete_plan(pool, plan_id):
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM plans WHERE id=$1", plan_id)
+
+# توابع سفارش‌ها
+async def get_all_orders(pool):
+    async with pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM orders ORDER BY created_at DESC")
+
+async def update_order_status(pool, order_id, status):
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE orders SET status=$1 WHERE id=$2", status, order_id)
+
+async def set_order_config(pool, order_id, config_text):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE orders SET config_text=$1 WHERE id=$2",
+            config_text, order_id
+        )
