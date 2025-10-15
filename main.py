@@ -7,11 +7,14 @@ from db import init_db, get_pool
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 async def main():
+    # ساخت Pool دیتابیس
     pool = await get_pool(os.environ["DATABASE_URL"])
     await init_db(pool)
 
+    # ساخت اپلیکیشن
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # افزودن Pool دیتابیس به bot_data برای دسترسی handlerها
     app.bot_data['db_pool'] = pool
 
     # Command & Callback Handlers
@@ -21,10 +24,8 @@ async def main():
     app.add_handler(CallbackQueryHandler(wallet, pattern="wallet"))
     app.add_handler(CallbackQueryHandler(admin_panel, pattern="admin_panel"))
 
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
+    # شروع ربات با run_polling
+    await app.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
