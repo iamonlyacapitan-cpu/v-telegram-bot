@@ -3,16 +3,9 @@ from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, fil
 from database import db
 from utils.helpers import get_admin_keyboard, get_main_keyboard, format_user_info
 import logging
-from typing import Dict, Any
+import os
 
 logger = logging.getLogger(__name__)
-
-# حالت‌های مختلف برای پنل ادمین
-class AdminStates:
-    BROADCAST_MESSAGE = "broadcast_message"
-    BROADCAST_PHOTO = "broadcast_photo"
-    SEND_MESSAGE_TO_USER = "send_message_to_user"
-    ADD_PLAN = "add_plan"
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """نمایش پنل مدیریت"""
@@ -88,13 +81,6 @@ async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             orders_text += f"📦 پلن: {order['plan_name']}\n"
             orders_text += f"💰 مبلغ: {order['price']:,} تومان\n"
             orders_text += f"📅 تاریخ: {order['created_at'].strftime('%Y-%m-%d %H:%M')}\n"
-            
-            keyboard_line = []
-            if len(pending_orders) <= 5:
-                keyboard_line.extend([
-                    InlineKeyboardButton(f"✅ #{order['order_id']}", callback_data=f"approve_order_{order['order_id']}"),
-                    InlineKeyboardButton(f"❌ #{order['order_id']}", callback_data=f"reject_order_{order['order_id']}")
-                ])
             
             orders_text += "─" * 30 + "\n"
     
