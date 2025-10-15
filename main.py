@@ -1,8 +1,7 @@
 import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 from db import create_pool, init_db
-from bot_handlers import start, wallet
-
+from bot_handlers import start, wallet, show_plans, my_orders, admin_panel
 from config import BOT_TOKEN
 
 async def main():
@@ -12,14 +11,14 @@ async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.bot_data['db_pool'] = pool
 
-    # Commands
+    # Command Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("wallet", wallet))
 
-    # CallbackQueryHandler ها برای منوها و پنل ادمین
-    # ⚡ بعداً اضافه می‌شوند
-    # Example:
-    # app.add_handler(CallbackQueryHandler(show_plans, pattern="show_plans"))
+    # Callback Handlers
+    app.add_handler(CallbackQueryHandler(show_plans, pattern="show_plans"))
+    app.add_handler(CallbackQueryHandler(my_orders, pattern="my_orders"))
+    app.add_handler(CallbackQueryHandler(admin_panel, pattern="admin_panel"))
 
     print("Bot is running...")
     await app.run_polling()
