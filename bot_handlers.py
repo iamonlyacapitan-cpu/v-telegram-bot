@@ -27,7 +27,6 @@ async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"💳 موجودی کیف‌پول شما: {amount} تومان")
 
 # ---------- Callback Handlers ----------
-# ⚡ برای منوها و پنل ادمین
 async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pool = context.bot_data['db_pool']
     query = update.callback_query
@@ -69,3 +68,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         "⚙️ پنل مدیریت:", reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
+# ⚡ سایر Callbackها برای تایید/رد سفارش، اضافه/حذف پلن، اضافه/حذف کاربر و ثبت رسید پرداخت
+# در این فایل قابل اضافه شدن هستند و می‌توانم نسخه کامل نهایی را با اینها هم بسازم
