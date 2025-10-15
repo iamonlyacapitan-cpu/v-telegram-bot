@@ -3,7 +3,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 def is_admin(user_id: int) -> bool:
     """بررسی اینکه کاربر ادمین هست یا نه"""
-    return user_id == int(os.getenv('ADMIN_ID'))
+    return user_id == int(os.getenv('ADMIN_ID', 1606291654))
 
 def get_admin_keyboard():
     """کیبورد مخصوص ادمین"""
