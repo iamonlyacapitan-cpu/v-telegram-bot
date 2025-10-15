@@ -103,7 +103,7 @@ async def select_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu")]]
     
     # اطلاع به ادمین
-    admin_id = int(context.bot_data['ADMIN_ID'])
+    admin_id = int(os.getenv('ADMIN_ID'))
     admin_text = f"""
 🚨 سفارش جدید!
 
@@ -234,7 +234,7 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # در نسخه واقعی باید فایل دانلود و ذخیره شود
     
     # اطلاع به ادمین
-    admin_id = int(context.bot_data['ADMIN_ID'])
+    admin_id = int(os.getenv('ADMIN_ID'))
     admin_text = f"""
 📨 رسید پرداخت جدید از کاربر:
 
