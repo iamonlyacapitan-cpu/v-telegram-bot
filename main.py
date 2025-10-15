@@ -1,4 +1,3 @@
-import asyncio
 import os
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 from handlers import start, show_plans, my_orders, wallet, admin_panel
@@ -24,8 +23,9 @@ async def main():
     app.add_handler(CallbackQueryHandler(wallet, pattern="wallet"))
     app.add_handler(CallbackQueryHandler(admin_panel, pattern="admin_panel"))
 
-    # شروع ربات با run_polling
+    # شروع ربات با run_polling (کاملاً async)
     await app.run_polling()
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
