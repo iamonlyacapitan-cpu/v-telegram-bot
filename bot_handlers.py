@@ -1,6 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
-from db import register_user, add_log, is_admin, get_wallet, update_wallet
+from db import register_user, add_log, is_admin, get_wallet, update_wallet, get_all_users, delete_user
+import datetime
 
 # ---------- Command Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -69,5 +70,28 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚙️ پنل مدیریت:", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ⚡ سایر Callbackها برای تایید/رد سفارش، اضافه/حذف پلن، اضافه/حذف کاربر و ثبت رسید پرداخت
-# در این فایل قابل اضافه شدن هستند و می‌توانم نسخه کامل نهایی را با اینها هم بسازم
+# ---------- مدیریت کاربران ----------
+async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pool = context.bot_data['db_pool']
+    query = update.callback_query
+    await query.answer()
+    rows = await get_all_users(pool)
+    if not rows:
+        await query.edit_message_text("❌ هیچ کاربری ثبت نشده است.")
+        return
+    text = "\n".join([f"👤 {r['telegram_id']} - کیف‌پول: {r['wallet']} تومان" for r in rows])
+    await query.edit_message_text(f"🧑‍💼 کاربران:\n\n{text}")
+
+async def delete_user_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pool = context.bot_data['db_pool']
+    tg = update.effective_user
+    if not await is_admin(pool, tg.id):
+        await update.callback_query.answer("❌ شما ادمین نیستید!", show_alert=True)
+        return
+    # فرض می‌کنیم callback_data="delete_user:telegram_id"
+    query = update.callback_query
+    await query.answer()
+    telegram_id = int(query.data.split(":")[1])
+    await delete_user(pool, telegram_id)
+    await add_log(pool, tg.id, f"حذف کاربر {telegram_id}")
+    await query.edit_message_text(f"✅ کاربر {telegram_id} حذف شد.")
