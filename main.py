@@ -2,18 +2,21 @@ import asyncio
 import os
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 from handlers import start, show_plans, my_orders, wallet, admin_panel
-from db import init_db
+from db import init_db, get_pool
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 async def main():
-    # اتصال به دیتابیس و ایجاد جداول اگر موجود نبود
-    await init_db(os.environ["DATABASE_URL"])
+    # اتصال و ایجاد جداول دیتابیس
+    pool = await init_db(os.environ["DATABASE_URL"])
 
-    # ساخت اپلیکیشن
+    # ساخت اپلیکیشن بدون Updater مستقیم
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # ثبت command و callback handler ها
+    # ذخیره pool در bot_data برای دسترسی در handler ها
+    app.bot_data['db_pool'] = pool
+
+    # ثبت handler ها
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(show_plans, pattern="show_plans"))
     app.add_handler(CallbackQueryHandler(my_orders, pattern="my_orders"))
