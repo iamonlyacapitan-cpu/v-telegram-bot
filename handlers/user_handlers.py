@@ -1,5 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import CallbackQueryHandler, MessageHandler, Filters
 from database import db
 from utils.helpers import get_main_keyboard, get_plans_keyboard, is_admin
 import logging
@@ -7,7 +7,34 @@ import os
 
 logger = logging.getLogger(__name__)
 
-async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context):
+    """دستور شروع ربات"""
+    user = update.effective_user
+    user_id = user.id
+    
+    # ایجاد کاربر در دیتابیس
+    await db.create_user(user_id, user.username, user.first_name, user.last_name or "")
+    await db.add_log(user_id, "start", "کاربر ربات را شروع کرد")
+    
+    welcome_text = """
+🤖 به ربات فروش VPN خوش آمدید!
+
+🔒 با استفاده از این ربات می‌توانید:
+• VPN پرسرعت خریداری کنید
+• سفارشات خود را مدیریت کنید
+• موجودی کیف پول خود را بررسی کنید
+
+برای شروع از دکمه‌های زیر استفاده کنید:
+"""
+    
+    keyboard = get_main_keyboard(is_admin(user_id))
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(welcome_text, reply_markup=keyboard)
+    else:
+        await update.message.reply_text(welcome_text, reply_markup=keyboard)
+
+async def show_plans(update: Update, context):
     """نمایش پلن‌های موجود"""
     query = update.callback_query
     await query.answer()
@@ -28,7 +55,7 @@ async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = get_plans_keyboard(plans)
     await query.edit_message_text(plans_text, reply_markup=keyboard)
 
-async def select_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def select_plan(update: Update, context):
     """انتخاب پلن توسط کاربر"""
     query = update.callback_query
     await query.answer()
@@ -56,11 +83,8 @@ async def select_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     
     if user['balance'] >= plan['price']:
-        # اگر موجودی کافی دارد
         order_text += "✅ موجودی شما کافی است. لطفا منتظر تایید ادمین باشید."
-        keyboard = [[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu")]]
     else:
-        # اگر موجودی کافی ندارد
         order_text += f"""
 ❌ موجودی شما کافی نیست.
 💳 موجودی فعلی: {user['balance']:,} تومان
@@ -74,7 +98,8 @@ async def select_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 سپس رسید پرداخت را در این چت آپلود کنید.
 """
-        keyboard = [[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu")]]
+    
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu")]]
     
     # اطلاع به ادمین
     admin_id = int(os.getenv('ADMIN_ID'))
@@ -105,7 +130,7 @@ async def select_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(order_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def my_orders(update: Update, context):
     """نمایش سفارشات کاربر"""
     query = update.callback_query
     await query.answer()
@@ -139,7 +164,7 @@ async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
     await query.edit_message_text(orders_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def wallet(update: Update, context):
     """نمایش کیف پول کاربر"""
     query = update.callback_query
     await query.answer()
@@ -157,7 +182,7 @@ async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
     await query.edit_message_text(wallet_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_command(update: Update, context):
     """دستور راهنما"""
     query = update.callback_query
     await query.answer()
@@ -187,17 +212,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
     await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_receipt(update: Update, context):
     """پردازش رسید پرداخت کاربر"""
     user_id = update.message.from_user.id
     user = await db.get_user(user_id)
     
     if update.message.photo:
-        # اگر کاربر عکس ارسال کرده
         file_id = update.message.photo[-1].file_id
         receipt_text = "عکس رسید پرداخت"
     elif update.message.document:
-        # اگر کاربر فایل ارسال کرده
         file_id = update.message.document.file_id
         receipt_text = "فایل رسید پرداخت"
     else:
@@ -216,7 +239,6 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 لطفا رسید را بررسی و سفارش را تایید یا رد کنید.
 """
     
-    # ارسال رسید به ادمین
     try:
         if update.message.photo:
             await context.bot.send_photo(
@@ -244,10 +266,11 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ثبت هندلرها
 user_handlers = [
+    CallbackQueryHandler(start, pattern="^main_menu$"),
     CallbackQueryHandler(show_plans, pattern="^buy_vpn$"),
     CallbackQueryHandler(select_plan, pattern="^select_plan_"),
     CallbackQueryHandler(my_orders, pattern="^my_orders$"),
     CallbackQueryHandler(wallet, pattern="^wallet$"),
     CallbackQueryHandler(help_command, pattern="^help$"),
-    MessageHandler(filters.PHOTO | filters.Document.ALL, handle_receipt)
+    MessageHandler(Filters.photo | Filters.document, handle_receipt)
 ]
