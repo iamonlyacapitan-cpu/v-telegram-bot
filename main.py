@@ -1,9 +1,10 @@
 import os
-import asyncio
 import logging
-from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from database import db
+from handlers.user_handlers import user_handlers
+from handlers.admin_handlers import admin_handlers
+from utils.helpers import is_admin
 
 # تنظیمات logging
 logging.basicConfig(
@@ -11,9 +12,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# لود متغیرهای محیطی
-load_dotenv()
 
 async def start(update, context):
     """دستور شروع ربات"""
@@ -35,7 +33,7 @@ async def start(update, context):
 برای شروع از دکمه‌های زیر استفاده کنید:
 """
     
-    from utils.helpers import get_main_keyboard, is_admin
+    from utils.helpers import get_main_keyboard
     keyboard = get_main_keyboard(is_admin(user_id))
     
     if update.callback_query:
@@ -43,41 +41,31 @@ async def start(update, context):
     else:
         await update.message.reply_text(welcome_text, reply_markup=keyboard)
 
-async def main():
+def main():
     """تابع اصلی اجرای ربات"""
-    
-    # اتصال به دیتابیس
-    try:
-        await db.connect()
-        logger.info("✅ Connected to database successfully")
-    except Exception as e:
-        logger.error(f"❌ Database connection failed: {e}")
-        return
-    
     # ایجاد اپلیکیشن
     bot_token = os.getenv('BOT_TOKEN')
     if not bot_token:
         logger.error("❌ BOT_TOKEN not found in environment variables")
         return
     
-    application = Application.builder().token(bot_token).build()
+    updater = Updater(bot_token, use_context=True)
+    dispatcher = updater.dispatcher
+
+    # اضافه کردن هندلر شروع
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
     
-    # اضافه کردن هندلرها
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
-    
-    # اضافه کردن سایر هندلرها از ماژول‌ها
-    from handlers.user_handlers import user_handlers
-    from handlers.admin_handlers import admin_handlers
-    
+    # اضافه کردن هندلرهای کاربران
     for handler in user_handlers:
-        application.add_handler(handler)
+        dispatcher.add_handler(handler)
     
+    # اضافه کردن هندلرهای ادمین
     for handler in admin_handlers:
-        application.add_handler(handler)
+        dispatcher.add_handler(handler)
     
     # هندلر برای پیام‌های متنی معمولی
-    async def handle_regular_message(update, context):
+    def handle_regular_message(update, context):
         """پردازش پیام‌های متنی معمولی"""
         user_id = update.message.from_user.id
         
@@ -86,13 +74,17 @@ async def main():
             return
         
         # در غیر این صورت کاربر را به منوی اصلی هدایت کن
-        await start(update, context)
+        start(update, context)
     
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_regular_message))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_regular_message))
     
     # شروع ربات
     logger.info("🤖 Bot is starting...")
-    await application.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # اتصال به دیتابیس و سپس اجرای ربات
+    import asyncio
+    asyncio.run(db.connect())
+    main()
