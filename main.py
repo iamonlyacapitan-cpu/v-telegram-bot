@@ -145,4 +145,52 @@ async def show_plans(update: Update, context):
     plans_text = "🛒 پلن‌های موجود:\n\n"
     for plan in plans:
         plans_text += f"📦 {plan['name']}\n"
-        plans_text += f"💰 قیمت: {plan['price']:,} توم
+        plans_text += f"💰 قیمت: {plan['price']:,} تومان\n"
+        plans_text += f"⏰ مدت: {plan['duration_days']} روز\n"
+        plans_text += f"📝 {plan['description']}\n"
+        plans_text += "─" * 30 + "\n"
+    
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
+    await query.edit_message_text(plans_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def help_command(update: Update, context):
+    """راهنما"""
+    query = update.callback_query
+    await query.answer()
+    
+    help_text = """
+ℹ️ راهنمای استفاده از ربات:
+
+🛒 خرید VPN:
+• از منوی اصلی گزینه خرید را انتخاب کنید
+• پلن مورد نظر خود را انتخاب کنید
+• با ادمین برای تکمیل خرید تماس بگیرید
+
+📞 پشتیبانی:
+@admin
+"""
+    
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
+    await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+def main():
+    """تابع اصلی"""
+    # اتصال به دیتابیس
+    db.connect()
+    
+    # ایجاد اپلیکیشن
+    BOT_TOKEN = os.getenv('BOT_TOKEN')
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # اضافه کردن هندلرها
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
+    application.add_handler(CallbackQueryHandler(show_plans, pattern="^buy_vpn$"))
+    application.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
+    
+    # شروع ربات
+    logger.info("🤖 Bot is starting on Render...")
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
