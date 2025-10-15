@@ -7,6 +7,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     await register_user(pool, tg.id)
     await add_log(pool, tg.id, "start")
+
     keyboard = [
         [InlineKeyboardButton("💰 پلن‌ها", callback_data="show_plans")],
         [InlineKeyboardButton("🧾 سفارش‌های من", callback_data="my_orders")],
@@ -14,6 +15,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     if await is_admin(pool, tg.id):
         keyboard.append([InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel")])
+
     await update.message.reply_text("سلام! خوش آمدی به پینگ‌من ⚡", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
