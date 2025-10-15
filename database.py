@@ -1,6 +1,9 @@
 import asyncpg
 import os
 from typing import List, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
@@ -8,8 +11,13 @@ class Database:
     
     async def connect(self):
         """اتصال به دیتابیس"""
-        self.pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
-        await self.create_tables()
+        try:
+            self.pool = await asyncpg.create_pool(os.getenv('DATABASE_URL'))
+            await self.create_tables()
+            logger.info("✅ Connected to database successfully")
+        except Exception as e:
+            logger.error(f"❌ Database connection failed: {e}")
+            raise
     
     async def create_tables(self):
         """ایجاد جداول مورد نیاز"""
@@ -85,7 +93,7 @@ class Database:
             ''')
     
     # متدهای مدیریت کاربران
-    async def get_user(self, user_id: int) -> Dict[str, Any]:
+    async def get_user(self, user_id: int):
         async with self.pool.acquire() as conn:
             return await conn.fetchrow('SELECT * FROM users WHERE user_id = $1', user_id)
     
@@ -104,11 +112,11 @@ class Database:
             ''', amount, user_id)
     
     # متدهای مدیریت پلن‌ها
-    async def get_plans(self) -> List[Dict[str, Any]]:
+    async def get_plans(self):
         async with self.pool.acquire() as conn:
             return await conn.fetch('SELECT * FROM plans WHERE is_active = TRUE ORDER BY price')
     
-    async def get_plan(self, plan_id: int) -> Dict[str, Any]:
+    async def get_plan(self, plan_id: int):
         async with self.pool.acquire() as conn:
             return await conn.fetchrow('SELECT * FROM plans WHERE plan_id = $1', plan_id)
     
@@ -121,7 +129,7 @@ class Database:
                 RETURNING order_id
             ''', user_id, plan_id)
     
-    async def get_user_orders(self, user_id: int) -> List[Dict[str, Any]]:
+    async def get_user_orders(self, user_id: int):
         async with self.pool.acquire() as conn:
             return await conn.fetch('''
                 SELECT o.*, p.name as plan_name, p.price 
@@ -148,7 +156,7 @@ class Database:
             
             await conn.execute(query, *params)
     
-    async def get_pending_orders(self) -> List[Dict[str, Any]]:
+    async def get_pending_orders(self):
         async with self.pool.acquire() as conn:
             return await conn.fetch('''
                 SELECT o.*, u.username, u.first_name, p.name as plan_name, p.price
@@ -168,7 +176,7 @@ class Database:
             ''', user_id, action, details)
     
     # متدهای پنل ادمین
-    async def get_all_users(self) -> List[Dict[str, Any]]:
+    async def get_all_users(self):
         async with self.pool.acquire() as conn:
             return await conn.fetch('''
                 SELECT u.*, COUNT(o.order_id) as order_count
@@ -178,7 +186,7 @@ class Database:
                 ORDER BY u.created_at DESC
             ''')
     
-    async def get_all_orders(self) -> List[Dict[str, Any]]:
+    async def get_all_orders(self):
         async with self.pool.acquire() as conn:
             return await conn.fetch('''
                 SELECT o.*, u.username, u.first_name, p.name as plan_name, p.price
@@ -188,7 +196,7 @@ class Database:
                 ORDER BY o.created_at DESC
             ''')
     
-    async def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_logs(self, limit: int = 100):
         async with self.pool.acquire() as conn:
             return await conn.fetch(f'''
                 SELECT l.*, u.username, u.first_name
