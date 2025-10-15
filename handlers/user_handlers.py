@@ -1,37 +1,11 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from database import db
-from utils.helpers import get_main_keyboard, get_plans_keyboard, is_admin, format_user_info
+from utils.helpers import get_main_keyboard, get_plans_keyboard, is_admin
 import logging
+import os
 
 logger = logging.getLogger(__name__)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور شروع ربات"""
-    user = update.effective_user
-    user_id = user.id
-    
-    # ایجاد کاربر در دیتابیس
-    await db.create_user(user_id, user.username, user.first_name, user.last_name or "")
-    await db.add_log(user_id, "start", "کاربر ربات را شروع کرد")
-    
-    welcome_text = """
-🤖 به ربات فروش VPN خوش آمدید!
-
-🔒 با استفاده از این ربات می‌توانید:
-• VPN پرسرعت خریداری کنید
-• سفارشات خود را مدیریت کنید
-• موجودی کیف پول خود را بررسی کنید
-
-برای شروع از دکمه‌های زیر استفاده کنید:
-"""
-    
-    keyboard = get_main_keyboard(is_admin(user_id))
-    
-    if update.callback_query:
-        await update.callback_query.edit_message_text(welcome_text, reply_markup=keyboard)
-    else:
-        await update.message.reply_text(welcome_text, reply_markup=keyboard)
 
 async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """نمایش پلن‌های موجود"""
@@ -230,9 +204,6 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ لطفا عکس یا فایل رسید پرداخت را ارسال کنید.")
         return
     
-    # ذخیره اطلاعات رسید (در اینجا فقط file_id ذخیره می‌شود)
-    # در نسخه واقعی باید فایل دانلود و ذخیره شود
-    
     # اطلاع به ادمین
     admin_id = int(os.getenv('ADMIN_ID'))
     admin_text = f"""
@@ -273,7 +244,6 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ثبت هندلرها
 user_handlers = [
-    CallbackQueryHandler(start, pattern="^main_menu$"),
     CallbackQueryHandler(show_plans, pattern="^buy_vpn$"),
     CallbackQueryHandler(select_plan, pattern="^select_plan_"),
     CallbackQueryHandler(my_orders, pattern="^my_orders$"),
