@@ -1,116 +1,81 @@
 import os
+import asyncio
 import logging
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
-logging.basicConfig(level=logging.INFO)
+from app.config import config
+from app.database.repository import DatabaseRepository
+from app.handlers.user_handlers import UserHandlers
+from app.handlers.admin_handlers import AdminHandlers
+from app.handlers.admin_management import AdminManagementHandlers
+
+# تنظیمات لاگ
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Health Check Server
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/health':
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'OK')
-        else:
-            self.send_response(404)
-            self.end_headers()
+async def main():
+    """تابع اصلی اجرای ربات"""
     
-    def log_message(self, format, *args):
-        return
-
-def start_health_server():
-    port = int(os.environ.get('PORT', 8080))
-    server = HTTPServer(('0.0.0.0', port), HealthHandler)
-    logger.info(f"🩺 Health server on port {port}")
-    server.serve_forever()
-
-def get_main_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("🛒 خرید VPN", callback_data="buy_vpn")],
-        [InlineKeyboardButton("💰 قیمت‌ها", callback_data="prices")],
-        [InlineKeyboardButton("ℹ️ راهنما", callback_data="help")],
-        [InlineKeyboardButton("👨‍💼 پشتیبانی", callback_data="support")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def start(update, context):
-    user = update.effective_user
-    message = (
-        f"🎉 **ربات VPN کاملاً جدید فعال شد!**\n\n"
-        f"👋 سلام {user.first_name}!\n"
-        f"🆔 شناسه شما: {user.id}\n"
-        f"✅ Instance: کاملاً جدید\n"
-        f"🚀 وضعیت: بدون Conflict\n\n"
-        f"برای شروع از منوی زیر استفاده کنید:"
-    )
+    # راه‌اندازی دیتابیس
+    db = DatabaseRepository(config.DATABASE_URL)
+    await db.connect()
     
-    if update.callback_query:
-        update.callback_query.edit_message_text(message, reply_markup=get_main_keyboard())
-    else:
-        update.message.reply_text(message, reply_markup=get_main_keyboard())
-
-def show_plans(update, context):
-    query = update.callback_query
-    query.answer()
+    # ایجاد application
+    application = Application.builder().token(config.BOT_TOKEN).build()
     
-    plans_text = """
-📦 **پلن‌های VPN:**
-
-• یک ماهه - 29,000 تومان
-• سه ماهه - 79,000 تومان  
-• یک ساله - 199,000 تومان
-
-💳 برای خرید با پشتیبانی تماس بگیرید.
-"""
-    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
-    query.edit_message_text(plans_text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-def main():
-    # توکن ربات جدید رو اینجا قرار دهید
-    BOT_TOKEN = os.environ.get('BOT_TOKEN')
+    # ذخیره دیتابیس در bot_data
+    application.bot_data['db'] = db
     
-    if not BOT_TOKEN:
-        logger.error("❌ BOT_TOKEN not found")
-        return
+    # ایجاد هندلرها
+    user_handlers = UserHandlers(db)
+    admin_handlers = AdminHandlers(db)
+    admin_management = AdminManagementHandlers(db)
     
-    logger.info("🆕 Starting COMPLETELY NEW bot...")
-    logger.info(f"🔑 Token: {BOT_TOKEN[:15]}...")
+    # ثبت هندلرها
+    # دستورات کاربران
+    application.add_handler(CommandHandler("start", user_handlers.start))
+    application.add_handler(CommandHandler("profile", user_handlers.profile))
     
-    # شروع health server
-    health_thread = threading.Thread(target=start_health_server, daemon=True)
-    health_thread.start()
+    # Callback queries کاربران
+    application.add_handler(CallbackQueryHandler(user_handlers.start, pattern="^main_menu$"))
+    application.add_handler(CallbackQueryHandler(user_handlers.show_plans, pattern="^buy_vpn$"))
+    application.add_handler(CallbackQueryHandler(user_handlers.select_plan, pattern="^plan_"))
+    application.add_handler(CallbackQueryHandler(user_handlers.profile, pattern="^order_history$"))
     
-    try:
-        # ایجاد ربات جدید
-        updater = Updater(BOT_TOKEN, use_context=True)
-        dispatcher = updater.dispatcher
-        
-        # اضافه کردن هندلرها
-        dispatcher.add_handler(CommandHandler("start", start))
-        dispatcher.add_handler(CommandHandler("test", start))
-        dispatcher.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
-        dispatcher.add_handler(CallbackQueryHandler(show_plans, pattern="^buy_vpn$"))
-        
-        # شروع ربات با تنظیمات ویژه
-        updater.start_polling(
-            drop_pending_updates=True,
-            poll_interval=0.5,
-            timeout=10,
-            read_latency=2.0
-        )
-        
-        logger.info("✅ COMPLETELY NEW bot started successfully!")
-        logger.info("🤖 Bot is ready and waiting for /start command...")
-        
-        # نگه داشتن برنامه
-        updater.idle()
-        
-    except Exception as e:
-        logger.error(f"❌ Error starting new bot: {e}")
+    # مدیریت رسید پرداخت
+    application.add_handler(MessageHandler(
+        filters.PHOTO, 
+        user_handlers.handle_payment_receipt
+    ))
+    
+    # هندلرهای ادمین
+    application.add_handler(CommandHandler("admin", admin_handlers.admin_panel))
+    application.add_handler(CallbackQueryHandler(admin_handlers.manage_orders, pattern="^admin_orders$"))
+    application.add_handler(CallbackQueryHandler(admin_handlers.send_config_text, pattern="^config_text_"))
+    
+    # مدیریت ادمین‌ها
+    application.add_handler(CallbackQueryHandler(admin_management.manage_admins, pattern="^admin_management$"))
+    application.add_handler(CallbackQueryHandler(admin_management.add_admin, pattern="^add_admin$"))
+    
+    # هندلرهای متن برای ادمین
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND, 
+        admin_management.handle_admin_info
+    ))
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND, 
+        admin_handlers.handle_config_text
+    ))
+    
+    # هندلر بازگشت
+    application.add_handler(CallbackQueryHandler(admin_handlers.admin_panel, pattern="^admin_back$"))
+    
+    # شروع ربات
+    logger.info("✅ Bot starting...")
+    await application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
