@@ -1,8 +1,8 @@
 import os
 import logging
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 
 # تنظیمات logging
 logging.basicConfig(
@@ -21,7 +21,7 @@ def get_main_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update: Update, context: CallbackContext):
     """دستور شروع ربات"""
     user = update.effective_user
     
@@ -44,14 +44,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = get_main_keyboard()
     
     if update.callback_query:
-        await update.callback_query.edit_message_text(welcome_text, reply_markup=keyboard)
+        update.callback_query.edit_message_text(welcome_text, reply_markup=keyboard)
     else:
-        await update.message.reply_text(welcome_text, reply_markup=keyboard)
+        update.message.reply_text(welcome_text, reply_markup=keyboard)
 
-async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def show_plans(update: Update, context: CallbackContext):
     """نمایش پلن‌ها"""
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     plans_text = """
 🛒 **پلن‌های VPN:**
@@ -83,12 +83,12 @@ async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     
     keyboard = [[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu")]]
-    await query.edit_message_text(plans_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(plans_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def wallet_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def wallet_info(update: Update, context: CallbackContext):
     """اطلاعات کیف پول"""
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     wallet_text = """
 💰 **سیستم کیف پول**
@@ -108,12 +108,12 @@ async def wallet_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
-    await query.edit_message_text(wallet_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(wallet_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def help_command(update: Update, context: CallbackContext):
     """راهنما"""
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     help_text = """
 ℹ️ **راهنمای استفاده**
@@ -135,12 +135,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
-    await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def support_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def support_info(update: Update, context: CallbackContext):
     """اطلاعات پشتیبانی"""
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     support_text = """
 👨‍💼 **پشتیبانی فنی**
@@ -164,7 +164,7 @@ async def support_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     
     keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")]]
-    await query.edit_message_text(support_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(support_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 def main():
     """تابع اصلی"""
@@ -172,19 +172,21 @@ def main():
         # ایجاد اپلیکیشن
         BOT_TOKEN = os.getenv('BOT_TOKEN', '8462720172:AAG4qi1g8tz87NiMU7moM0c3k8SztZ5WAw4')
         
-        application = Application.builder().token(BOT_TOKEN).build()
+        updater = Updater(BOT_TOKEN, use_context=True)
+        dispatcher = updater.dispatcher
         
         # اضافه کردن هندلرها
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
-        application.add_handler(CallbackQueryHandler(show_plans, pattern="^buy_vpn$"))
-        application.add_handler(CallbackQueryHandler(wallet_info, pattern="^wallet$"))
-        application.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
-        application.add_handler(CallbackQueryHandler(support_info, pattern="^support$"))
+        dispatcher.add_handler(CommandHandler("start", start))
+        dispatcher.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
+        dispatcher.add_handler(CallbackQueryHandler(show_plans, pattern="^buy_vpn$"))
+        dispatcher.add_handler(CallbackQueryHandler(wallet_info, pattern="^wallet$"))
+        dispatcher.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
+        dispatcher.add_handler(CallbackQueryHandler(support_info, pattern="^support$"))
         
         # شروع ربات
-        logger.info("🤖 Bot is starting (Simple Version)...")
-        application.run_polling()
+        logger.info("🤖 Bot is starting (PTB 13.15)...")
+        updater.start_polling()
+        updater.idle()
         
     except Exception as e:
         logger.error(f"❌ Failed to start bot: {e}")
