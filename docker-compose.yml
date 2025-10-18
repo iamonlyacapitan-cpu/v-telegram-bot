@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-vpn-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # اگر می‌خوای دیتابیس هم با داکر اجرا بشه
+  postgres:
+    image: postgres:15
+    container_name: vpn-bot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vpnbot
+      POSTGRES_USER: vpnuser
+      POSTGRES_PASSWORD: vpnpassword123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
